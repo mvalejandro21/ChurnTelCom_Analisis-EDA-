@@ -192,3 +192,13 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+
+# Entornos virtuales
+env/
+venv/
+.venv/
+
+# Datos
+data/raw/
+data/processed/

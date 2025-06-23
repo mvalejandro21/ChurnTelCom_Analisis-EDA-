@@ -25,6 +25,8 @@ def data_cleaning(df):
 
     print("🧾 [INFO] Iniciando limpieza de datos...")
 
+    
+
     df = standardize_column_names(df)
     df = eliminar_duplicados(df)  # Eliminar duplicados
     df = imputar_valores_nulos(df)  # Imputar valores nulos
@@ -75,7 +77,7 @@ def drop_irrelevant_columns(df) :
     Se respeta una lista de columnas protegidas que no deben eliminarse.
     """
     protected_cols =  []
-    manual_drop =  ['customer_id','zip_code','latitude','longitude',]
+    manual_drop =  ['zip_code','latitude','longitude','churn_score']
 
     # Detectar columnas vacías
     empty_cols = df.columns[df.isnull().all()].tolist()

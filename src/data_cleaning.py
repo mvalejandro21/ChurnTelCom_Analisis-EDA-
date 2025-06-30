@@ -34,7 +34,7 @@ def data_cleaning(df):
     df = save_cleaned_data(df)  # Guardar datos limpios
 
 
-    return df
+
 
 def eliminar_duplicados(df):
     """
@@ -127,9 +127,8 @@ def save_cleaned_data(df):
     df (pd.DataFrame): El DataFrame a guardar.
     filename (str): Ruta del archivo donde se guardará el DataFrame.
     """
-    df.to_csv("data/processed/telco_cleaned.csv", index=False)
+    df.to_csv("../data/processed/telco_cleaned.csv", index=False)
     print(f"✅ Datos limpios guardados en: data/processed/telco_cleaned.csv")
 
 
-data_cleaning(pd.read_csv("data/raw/telco.csv"))
 

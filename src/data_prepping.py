@@ -1,144 +1,143 @@
-# ml_utils.py
-
 import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, roc_auc_score, roc_curve
-import matplotlib.pyplot as plt
-import seaborn as sns
+import joblib
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import classification_report
 
+import matplotlib.pyplot as plt
+import pandas as pd
+from sklearn.metrics import (
+    confusion_matrix, ConfusionMatrixDisplay,
+    roc_curve, auc, classification_report,
+    accuracy_score, precision_score, recall_score, f1_score
+)
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
-
-def main_prepping():
-
-    df = pd.read_csv("data/processed/telco_cleaned.csv")
-   
-    # Resumen inicial del dataset
-    X_train, X_test, y_train, y_test = dividir_dataset(df, target='churn')
-    entrenar_y_evaluar_modelo(
-        modelo=RandomForestClassifier(),
-        X_train=X_train,
-        y_train=y_train,
-        X_test=X_test,
-        y_test=y_test
-    )
-
-    evaluar_modelos_basicos(
-        X_train=X_train,
-        y_train=y_train,
-        X_test=X_test,
-        y_test=y_test
-    )
-
-    mostrar_confusion_roc(
-        modelo=RandomForestClassifier(),
-        X_test=X_test,
-        y_test=y_test
-    )
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
 
 
-# ===============================
-# ✂️ DIVISIÓN EN TRAIN Y TEST
-# ===============================
-
-def dividir_dataset(df: pd.DataFrame, target: str, test_size: float = 0.2, random_state: int = 42):
-    """Divide el dataset en train y test manteniendo la proporción de clases."""
-    X = df.drop(columns=[target])
-    y = df[target]
-    return train_test_split(X, y, test_size=test_size, stratify=y, random_state=random_state)
 
 
-# ==========================================
-# ⚖️ ENTRENAMIENTO Y EVALUACIÓN GENERAL
-# ==========================================
+def main_prepping(X, y, preprocessor):
+    # -------------------------
+    # Dividir en train/test
+    # -------------------------
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-def entrenar_y_evaluar_modelo(modelo, X_train, y_train, X_test, y_test):
-    """Entrena un modelo y muestra métricas básicas."""
-    modelo.fit(X_train, y_train)
-    y_pred = modelo.predict(X_test)
+    # -------------------------
+    # Crear pipeline con preprocessor y modelo
+    # -------------------------
+    model_pipeline = Pipeline([
+        ('preprocessor', preprocessor),
+        ('classifier', RandomForestClassifier(random_state=42))
+    ])
 
-    print("🎯 Accuracy:", accuracy_score(y_test, y_pred))
-    print("\n🧾 Reporte de Clasificación:")
+    # -------------------------
+    # Entrenar modelo
+    # -------------------------
+    model_pipeline.fit(X_train, y_train)
+
+    # -------------------------
+    # Evaluar modelo
+    # -------------------------
+    y_pred = model_pipeline.predict(X_test)
     print(classification_report(y_test, y_pred))
 
-    return modelo
+    # -------------------------
+    # Guardar modelo completo
+    # -------------------------
+    joblib.dump(model_pipeline, "modelo_completo.joblib")
+
+    # Si prefieres guardar el preprocessor y el modelo por separado
+    joblib.dump(preprocessor, "preprocessor.joblib")
+    joblib.dump(model_pipeline.named_steps['classifier'], "modelo.joblib")
+
+    print("✅ Modelo y preprocessor guardados correctamente.")
 
 
-# =====================================================
-# 🔁 EVALUAR VARIOS MODELOS DE CLASIFICACIÓN
-# =====================================================
 
-def evaluar_modelos_basicos(X_train, y_train, X_test, y_test, cv: int = 5):
-    """Evalúa múltiples modelos de clasificación comunes con cross-validation."""
+
+
+def comparar_modelos(preprocessor, X, y):
+    """
+    Compara varios modelos, devuelve tabla de métricas,
+    y muestra matriz de confusión y ROC solo para Random Forest.
+    """
+    # Separar en train/test
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.3, random_state=42, stratify=y
+    )
+
+    # Modelos a comparar
     modelos = {
-        "Logistic Regression": LogisticRegression(max_iter=1000),
-        "Random Forest": RandomForestClassifier(),
-        "Decision Tree": DecisionTreeClassifier(),
-        "SVM": SVC(probability=True),
-        "Naive Bayes": GaussianNB(),
-        "KNN": KNeighborsClassifier()
+        "Random Forest": RandomForestClassifier(n_estimators=100, random_state=42),
+        "Logistic Regression": LogisticRegression(max_iter=1000, random_state=42),
+        "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42),
+        "SVM": SVC(probability=True, random_state=42)
     }
 
-    resultados = []
+    # Guardar métricas
+    metricas = []
 
     for nombre, modelo in modelos.items():
-        print(f"\n🔍 Evaluando: {nombre}")
-        modelo.fit(X_train, y_train)
-        y_pred = modelo.predict(X_test)
-        acc = accuracy_score(y_test, y_pred)
-        scores = cross_val_score(modelo, X_train, y_train, cv=cv)
+        # Pipeline
+        pipeline = Pipeline([
+            ('preprocessor', preprocessor),
+            ('classifier', modelo)
+        ])
 
-        resultados.append({
+        # Entrenar
+        pipeline.fit(X_train, y_train)
+
+        # Predicciones
+        y_pred = pipeline.predict(X_test)
+        y_proba = pipeline.predict_proba(X_test)[:, 1]
+
+        # Métricas
+        acc = accuracy_score(y_test, y_pred)
+        prec = precision_score(y_test, y_pred)
+        rec = recall_score(y_test, y_pred)
+        f1 = f1_score(y_test, y_pred)
+        fpr, tpr, _ = roc_curve(y_test, y_proba)
+        roc_auc = auc(fpr, tpr)
+
+        # Guardar
+        metricas.append({
             "Modelo": nombre,
             "Accuracy": acc,
-            "CV Mean": scores.mean(),
-            "CV Std": scores.std()
+            "Precision": prec,
+            "Recall": rec,
+            "F1-Score": f1,
+            "AUC": roc_auc
         })
 
-    df_resultados = pd.DataFrame(resultados).sort_values(by="CV Mean", ascending=False)
-    print("\n📊 Resultados Comparativos:")
-    print(df_resultados)
-    return df_resultados
+        # Mostrar gráficos solo para Random Forest
+        if nombre == "Random Forest":
+            # Matriz de confusión
+            cm = confusion_matrix(y_test, y_pred)
+            disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=['No churn', 'Churn'])
+            disp.plot(cmap='Blues')
+            plt.title(f"Matriz de Confusión - {nombre}")
+            plt.show()
+
+            # Curva ROC
+            plt.figure(figsize=(6, 6))
+            plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
+            plt.plot([0, 1], [0, 1], 'k--')
+            plt.xlabel("False Positive Rate")
+            plt.ylabel("True Positive Rate")
+            plt.title(f"Curva ROC - {nombre}")
+            plt.legend(loc="lower right")
+            plt.grid()
+            plt.show()
+
+    # Crear dataframe resumen
+    df_metricas = pd.DataFrame(metricas)
+    print("Resumen comparativo de modelos:")
+    print(df_metricas)
 
 
-# =====================================================
-# 📉 MATRIZ DE CONFUSIÓN Y CURVA ROC
-# =====================================================
-
-def mostrar_confusion_roc(modelo, X_test, y_test):
-    """Muestra matriz de confusión y curva ROC si es binaria."""
-    y_pred = modelo.predict(X_test)
-    y_proba = modelo.predict_proba(X_test)[:, 1] if hasattr(modelo, "predict_proba") else None
-
-    # Matriz de confusión
-    cm = confusion_matrix(y_test, y_pred)
-    plt.figure(figsize=(5, 4))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
-    plt.title("📊 Matriz de Confusión")
-    plt.xlabel("Predicción")
-    plt.ylabel("Real")
-    plt.show()
-
-    # Curva ROC si es binario y se puede
-    if y_proba is not None and len(np.unique(y_test)) == 2:
-        fpr, tpr, _ = roc_curve(y_test, y_proba)
-        auc = roc_auc_score(y_test, y_proba)
-        plt.figure()
-        plt.plot(fpr, tpr, label=f"ROC AUC = {auc:.2f}")
-        plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
-        plt.xlabel("False Positive Rate")
-        plt.ylabel("True Positive Rate")
-        plt.title("📈 Curva ROC")
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-    else:
-        print("⚠️ ROC no disponible (modelo no binario o sin predict_proba)")
-
-
-main_prepping()

@@ -113,3 +113,4 @@ if submitted:
         st.error(f"⚠️ Este cliente probablemente hará churn. Probabilidad: {prediction_proba:.2f}")
     else:
         st.success(f"✅ Este cliente probablemente NO hará churn. Probabilidad: {prediction_proba:.2f}")
+ 
